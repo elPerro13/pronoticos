@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Analizador Progresivo V8 - Inteligencia Maestra</title>
+    <style>
+        body { background-color: #0d0d0d; color: #e0e0e0; font-family: 'Courier New', monospace; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+        .container { width: 100%; max-width: 950px; background: #1a1a1a; padding: 20px; border-radius: 12px; border: 1px solid #333; box-shadow: 0 0 20px rgba(0,255,65,0.1); }
+        h2 { color: #ffcc00; text-align: center; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 20px; }
+        
+        .info-bar { margin-bottom: 10px; font-size: 0.9em; display: flex; justify-content: space-between; width: 100%; }
+        .input-header { display: grid; grid-template-columns: 100px 150px 1fr; gap: 10px; margin-bottom: 5px; padding: 0 15px; font-weight: bold; color: #888; font-size: 0.8em; }
+        .input-area { width: 100%; background: #000; border: 1px solid #444; border-radius: 8px; overflow: hidden; }
+        
+        textarea { 
+            width: 100%; height: 250px; background: transparent; color: #00ff41; border: none; padding: 15px; 
+            font-size: 16px; line-height: 1.5; font-family: 'Courier New', monospace; resize: vertical; outline: none;
+        }
+
+        .btn-group { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 20px; }
+        button { padding: 15px; font-weight: bold; cursor: pointer; border-radius: 6px; border: none; text-transform: uppercase; transition: 0.3s; }
+        .btn-calc { background: #ffcc00; color: #000; font-size: 1.1em; }
+        .btn-calc:hover { background: #fff; box-shadow: 0 0 15px #ffcc00; }
+        .btn-del { background: #222; color: #ff4444; border: 1px solid #444; }
+        
+        .result-section { margin-top: 30px; display: none; border-top: 2px solid #333; padding-top: 20px; width: 100%; }
+        .grid-results { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .card { background: #222; padding: 15px; border-radius: 10px; border-left: 8px solid #ffcc00; }
+        .card-full { grid-column: 1 / span 2; background: #2d2d2d; border-left-color: #ffffff; border-right: 8px solid #ffffff; }
+        .title-card { color: #ffcc00; font-size: 0.85em; margin-bottom: 10px; font-weight: bold; text-transform: uppercase; }
+        .big-num { font-size: 1.5em; text-align: center; color: #fff; background: #000; padding: 12px; border-radius: 6px; border: 1px solid #444; letter-spacing: 2px; }
+        
+        .color-var { border-left-color: #00ff41; }
+        .color-frec { border-left-color: #ffcc00; }
+        .color-mad { border-left-color: #00ccff; }
+        .color-fecha { border-left-color: #ff44ff; }
+        .gold-text { color: #00ff41 !important; font-weight: bold; text-shadow: 0 0 5px rgba(0,255,65,0.5); }
+        
+        @media (max-width: 600px) { .grid-results { grid-template-columns: 1fr; } .card-full { grid-column: 1; } }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h2>Analizador de Probabilidades V8</h2>
+        
+        <div class="info-bar">
+            <span><span style="color: #00ff41;">●</span> Datos cargados: <span id="lineCount">0</span> sorteos</span>
+            <span style="color: #888;">Hoy: <span id="currentDateDisplay"></span></span>
+        </div>
+
+        <div class="input-header">
+            <div># ID</div>
+            <div>FECHA</div>
+            <div>COMBINACIÓN</div>
+        </div>
+
+        <div class="input-area">
+            <textarea id="dataInput" spellcheck="false" oninput="autoGuardar()"></textarea>
+        </div>
+
+        <div class="btn-group">
+            <button class="btn-calc" onclick="procesarAnalisis()">Generar Pronóstico Maestro</button>
+            <button class="btn-del" onclick="borrarTodo()">Limpiar Base</button>
+        </div>
+
+        <div id="seccionResultados" class="result-section">
+            <div class="grid-results">
+                
+                <div class="card color-var">
+                    <div class="title-card">1. TENDENCIA (VARIACIÓN)</div>
+                    <div id="resVariacion" class="big-num">--</div>
+                </div>
+
+                <div class="card color-frec">
+                    <div class="title-card">2. CALIENTES (FRECUENCIA)</div>
+                    <div id="resFrecuencia" class="big-num">--</div>
+                </div>
+
+                <div class="card color-mad">
+                    <div class="title-card">3. FRÍOS (MADURACIÓN)</div>
+                    <div id="resMaduracion" class="big-num">--</div>
+                </div>
+
+                <div class="card color-fecha">
+                    <div class="title-card" style="color: #ff44ff;">4. AFINIDAD DÍA DEL MES</div>
+                    <div id="resFecha" class="big-num">--</div>
+                </div>
+
+                <div class="card card-full">
+                    <div class="title-card" style="color: #fff; text-align: center;">🔥 5. PRONÓSTICO MAESTRO (COMBINADO OPTIMIZADO) 🔥</div>
+                    <div id="resMaestro" class="big-num gold-text" style="font-size: 2.2em; border: 2px solid #00ff41;">--</div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const MAX_NUM = 56;
+        const hoy = new Date();
+        document.getElementById('currentDateDisplay').innerText = hoy.toLocaleDateString();
+
+        window.onload = function() {
+            const temp = localStorage.getItem('lotto_storage_v8');
+            if (temp) {
+                document.getElementById('dataInput').value = temp;
+                contarLineas(temp);
+            }
+        };
+
+        function autoGuardar() {
+            const txt = document.getElementById('dataInput').value;
+            localStorage.setItem('lotto_storage_v8', txt);
+            contarLineas(txt);
+        }
+
+        function contarLineas(t) {
+            const l = t.split('\n').filter(x => x.trim().length > 0).length;
+            document.getElementById('lineCount').innerText = l;
+        }
+
+        function procesarAnalisis() {
+            const raw = document.getElementById('dataInput').value;
+            const lineasTxt = raw.split('\n').filter(l => l.trim().length > 0);
+
+            if (lineasTxt.length < 5) {
+                alert("Base de datos insuficiente.");
+                return;
+            }
+
+            let matrizCompleta = lineasTxt.map(linea => {
+                const parts = linea.split(/\s+/);
+                const numerosRaw = linea.split('-')[0].match(/\d+/g);
+                const fechaPart = linea.match(/(\d{1,2}\/\d{1,2}\/\d{2,4})/);
+                if (numerosRaw && numerosRaw.length >= 6) {
+                    return {
+                        nums: numerosRaw.slice(-6).map(Number),
+                        dia: fechaPart ? parseInt(fechaPart[0].split('/')[0]) : null
+                    };
+                }
+                return null;
+            }).filter(x => x !== null);
+
+            let matrizNums = matrizCompleta.map(x => x.nums);
+
+            // 1. FRECUENCIA
+            let conteo = {};
+            matrizNums.forEach(f => f.forEach(n => conteo[n] = (conteo[n] || 0) + 1));
+            let resFrec = Object.entries(conteo).sort((a,b)=>b[1]-a[1]).slice(0,6).map(x=>parseInt(x[0]));
+
+            // 2. VARIACIÓN
+            let saltos = new Array(6).fill(0);
+            for (let i=0; i<matrizNums.length-1; i++) {
+                for (let j=0; j<6; j++) saltos[j] += (matrizNums[i][j] - matrizNums[i+1][j]);
+            }
+            let resVar = matrizNums[0].map((v, j) => {
+                let r = Math.round(v + (saltos[j]/(matrizNums.length-1)));
+                while(r > MAX_NUM) r -= MAX_NUM; while(r < 1) r += MAX_NUM;
+                return r;
+            });
+
+            // 3. MADURACIÓN
+            let ultVez = {};
+            for(let i=1; i<=MAX_NUM; i++) ultVez[i] = 999;
+            matrizNums.forEach((f, idx) => f.forEach(n => { if(ultVez[n]===999) ultVez[n]=idx; }));
+            let resMad = Object.entries(ultVez).sort((a,b)=>b[1]-a[1]).slice(0,6).map(x=>parseInt(x[0]));
+
+            // 4. AFINIDAD FECHA
+            let diaHoy = hoy.getDate();
+            let afinidadNums = {};
+            matrizCompleta.forEach(sorteo => {
+                if (sorteo.dia && Math.abs(sorteo.dia - diaHoy) <= 2) {
+                    sorteo.nums.forEach(n => afinidadNums[n] = (afinidadNums[n] || 0) + 2);
+                }
+                sorteo.nums.forEach(n => {
+                    if (n % 10 === diaHoy % 10) afinidadNums[n] = (afinidadNums[n] || 0) + 1;
+                });
+            });
+            let resFecha = Object.entries(afinidadNums).sort((a,b)=>b[1]-a[1]).slice(0,6).map(x=>parseInt(x[0]));
+            if (resFecha.length < 6) resFecha = [4, 14, 24, 34, 44, 54];
+
+            // --- 5. LÓGICA DEL PRONÓSTICO MAESTRO ---
+            // Creamos un mapa de calor (puntuación)
+            let mapaCalor = {};
+            
+            // Función para dar puntos (más puntos a los primeros lugares de cada lista)
+            const asignarPuntos = (lista, peso) => {
+                lista.forEach((num, index) => {
+                    let puntos = (6 - index) * peso; 
+                    mapaCalor[num] = (mapaCalor[num] || 0) + puntos;
+                });
+            };
+
+            asignarPuntos(resFrec, 2);   // Calientes pesan más
+            asignarPuntos(resVar, 1.5); // Tendencia media
+            asignarPuntos(resMad, 1.2); // Fríos
+            asignarPuntos(resFecha, 1); // Fecha
+
+            // Extraer los 6 con mayor puntaje acumulado
+            let resMaestro = Object.entries(mapaCalor)
+                .sort((a,b) => b[1] - a[1]) // Ordenar por puntos
+                .slice(0, 6)                 // Tomar los 6 mejores
+                .map(x => parseInt(x[0]))
+                .sort((a,b) => a - b);       // Ordenar numéricamente
+
+            // Renderizar
+            const fmt = (a) => a.sort((x,y)=>x-y).map(n => n.toString().padStart(2, '0')).join(' - ');
+            
+            document.getElementById('resFrecuencia').innerText = fmt(resFrec);
+            document.getElementById('resVariacion').innerText = fmt(resVar);
+            document.getElementById('resMaduracion').innerText = fmt(resMad);
+            document.getElementById('resFecha').innerText = fmt(resFecha);
+            document.getElementById('resMaestro').innerText = fmt(resMaestro);
+            
+            document.getElementById('seccionResultados').style.display = "block";
+            window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+        }
+
+        function borrarTodo() {
+            if (confirm("¿Borrar toda la base de datos?")) { localStorage.removeItem('lotto_storage_v8'); location.reload(); }
+        }
+    </script>
+</body>
+</html>
